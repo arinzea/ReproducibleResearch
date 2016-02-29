@@ -1,0 +1,152 @@
+## Reproducible Research
+First create a directory to store the dataset
+```{r createdirectory, echo=TRUE}
+if(!file.exists("data")) {
+        dir.create("data")
+}
+```
+Download the dataset
+```{r downloadfile, echo = TRUE}
+downloadUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(downloadUrl,"./data/projectDataset.zip")
+```
+
+Extract the dataset
+```{r extract, echo=TRUE}
+unzip("./data/projectDataset.zip")
+```
+
+Install lsit of packages iof not installed
+```{r installpackages, echo=TRUE}
+list.of.packages <- c("knitr","ggplot2","timeDate")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if (length(new.packages))
+        install.packages(new.packages)
+```
+Read the file
+```{r readfile, echo=TRUE}
+activity <- read.csv("activity.csv") ;str(activity)
+```
+Format date and time columns
+```{r formatdatetime, echo=TRUE}
+activity$date <- as.Date(activity$date)
+starttime <- as.POSIXct("2012-10-01 00:00:00")
+interval_seq <- seq(starttime, length = nrow(activity), by = 300) #5 min interval or 300 secs
+activity <- cbind(activity,interval_seq)
+```
+
+Get number of steps taken each day
+
+```{r activitysum, echo=TRUE }
+activity_sum <- aggregate(activity$steps,by = list(activity$date), FUN = "sum")
+allNAs <- complete.cases(activity)
+allNAs <- activity[allNAs,]
+```
+Plot the result
+```{r plotsum, fig.height=6}
+library(ggplot2)
+str(activity_sum)
+qplot(x, data = activity_sum, geom = "histogram",xlab = "steps", main = "Histogram of Total Number of Steps"
+)
+```
+  
+Get the mean and median of total steps
+
+```{r getmeanmedian, echo=TRUE}
+ mean(activity_sum$x, na.rm = TRUE)
+ median(activity_sum$x, na.rm = TRUE)
+```
+Get the activity mean
+```{r getmean, echo=TRUE}
+activity_mean <- aggregate(
+        activity$steps,by = list(activity$date), FUN = "mean", simplify  = TRUE
+)
+```
+Get activity sequence
+```{r getsequence, echo=TRUE}
+activity_seq <- activity$interval_seq[1:nrow(activity_mean)]
+plotactivity <- cbind(activity_mean,activity_seq)
+good <- complete.cases(plotactivity)
+plotactivity_good <- plotactivity[good,]
+```
+Plot the result
+```{r plot2, fig.height=6}
+qplot(
+        activity_seq,x, data = plotactivity_good, geom = "line",colour = x, ylab = "Avg steps across all days"
+        , xlab = "5-Minute Interval", main = "Average Daily Activity Pattern"
+)
+```
+  
+Which 5-minute interval, on average across all the days in 
+the dataset, contains the maximum number of steps
+```{r maxsteps, echo=TRUE}
+plotactivity$Group.1[which.max(plotactivity$x)]
+```
+Number of NAs
+```{r numberofNAs, echo=TRUE}
+nrow(activity[!complete.cases(activity),])
+```
+I will replace with the mean of the 5minute interval
+```{r meaninterval,echo=TRUE}
+library(dplyr)
+mean_by_interval <- activity %>%
+        group_by(date) %>%
+        summarise_each(funs(mean))
+#the mean of the 5-minute interval by dates are all the same at 1177.5
+activity$steps[which(is.na(activity$steps))] <- 1177.5
+```
+Create a new dataset from here with the NAs filled in
+```{r createataset,echo=TRUE}
+write.csv(activity,file = "activity_with_NAs_filled.csv")
+```
+total number of steps taken each day with NA filled with plot
+
+```{r totalsteps, echo=TRUE}
+activity_sum_noNA <- aggregate(activity$steps,by = list(activity$date), FUN = "sum")
+
+qplot(
+        log(x), data = activity_sum_noNA, geom = "histogram",xlab = "steps", main =
+                "Histogram of log of Total Number of Steps NAs filled",binwidth = 0.1
+)
+```
+  
+mean and median with NAs filled
+```{r meanmedian1, echo=TRUE}
+ mean(activity_sum_noNA$x, na.rm = TRUE)
+ median(activity_sum_noNA$x, na.rm = TRUE)
+```
+Make a factor of weekdays and weekends
+```{r weeksfactor, echo=TRUE}
+library(timeDate)
+new_activity <- activity
+new_activity$week_days <-  ifelse(isWeekday(activity$date, wday = 1:5), "Weekday","Weekend")
+new_activity$week_days <- factor(new_activity$week_days)
+str(new_activity)
+week_days <- new_activity[new_activity$week_days == "Weekday",]
+week_ends <- new_activity[new_activity$week_days == "Weekend",]
+
+wkdayaveragesteps <- aggregate(week_days$steps,by = list(week_days$date), FUN = "mean")
+
+starttime <- as.POSIXct("2012-10-01 00:00:00")
+interval_seq <- seq(starttime, length = nrow(wkdayaveragesteps), by = 300) #5 min interval or 300 secs
+wkdayavg<- cbind(wkdayaveragesteps,interval_seq)
+
+wkendaveragesteps <- aggregate(week_ends$steps,by = list(week_ends$date), FUN = "mean")
+
+starttime <- as.POSIXct("2012-10-01 00:00:00")
+interval_seq <- seq(starttime, length = nrow(wkendaveragesteps), by = 300) #5 min interval or 300 secs
+wkendavg<- cbind(wkendaveragesteps,interval_seq)
+```
+
+Plot the weekdays and weekends
+```{r plotweeks,fig.height=6}
+qplot(
+        interval_seq,log(x), data = wkdayavg, geom = "line", ylab = "Avg steps across all days"
+        , xlab = "5-Minute Interval", main = "Weekday Average Daily Activity Pattern"
+)
+
+qplot(
+        interval_seq,log(x), data = wkendavg, geom = "line", ylab = "Avg steps across all days"
+        , xlab = "5-Minute Interval", main = "Weekend Average Daily Activity Pattern"
+)
+```
